@@ -40,6 +40,14 @@
 
 package com.sun.tools.ws.ant;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.URL;
+import java.util.Enumeration;
+
 import org.apache.tools.ant.AntClassLoader;
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.Project;
@@ -86,6 +94,11 @@ public class WsImport extends WsImportBase {
         if (addModules) {
             getCommandline().createVmArgument().setLine("--add-modules java.xml.ws");
         }
+
+        String apiJarPath = getApiClassPath(loader);//Should I use antClassloader?
+        if( null != apiJarPath && apiJarPath.length() > 0 && addModules ){ // This only works for modularized jar.
+            getCommandline().createVmArgument().setLine("--upgrade-module-path  "+apiJarPath);
+        }
         getCommandline().setClassname(className);
     }
 
@@ -102,6 +115,45 @@ public class WsImport extends WsImportBase {
 
     private float getVersion(String s) {
         return Float.parseFloat(s);
+    }
+
+    private String getApiClassPath(ClassLoader cl) {
+        StringBuilder sb = new StringBuilder();
+        URL wsAPI = getResourceFromCP(cl, "javax/xml/ws/EndpointContext.class");
+        if (wsAPI != null) {
+            sb.append(jarToPath(wsAPI));
+            URL jaxbAPI = getResourceFromCP(cl, "javax/xml/bind/JAXBPermission.class");
+            if (jaxbAPI != null) {
+                String s = jarToPath(jaxbAPI);
+                if (sb.indexOf(s) < 0) {
+                    sb.append(File.pathSeparator);
+                    sb.append(s);
+                }
+            }
+        }
+        return sb.length() != 0 ? sb.toString() : null;
+    }
+
+    private URL getResourceFromCP(ClassLoader cl, String resource) {
+        try {
+            Enumeration<URL> res = cl.getResources(resource);
+            while (res.hasMoreElements()) {
+                URL u = res.nextElement();
+                String s = u.toExternalForm();
+                if (!s.contains("java.xml.ws") && !s.contains("java.xml.bind")) {
+                    return u;
+                }
+            }
+        } catch (IOException ex) {
+            log(ex.getMessage(), Project.MSG_WARN);
+        }
+        return null;
+    }
+
+    private String jarToPath(URL u) {
+        String s = u.toExternalForm();
+        s = s.substring(s.lastIndexOf(':') + 1);
+        return s.indexOf('!') < 0 ? s : s.substring(0, s.indexOf('!'));
     }
 
 }
