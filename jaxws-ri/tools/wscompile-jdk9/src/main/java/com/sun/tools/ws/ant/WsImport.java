@@ -97,7 +97,9 @@ public class WsImport extends WsImportBase {
 
         String apiJarPath = getApiClassPath(loader);//Should I use antClassloader?
         if( null != apiJarPath && apiJarPath.length() > 0 && addModules ){ // This only works for modularized jar.
-            getCommandline().createVmArgument().setLine("--upgrade-module-path  "+apiJarPath);
+            String soapApiJar = getSoapApi(loader);
+            if(null != soapApiJar && soapApiJar.length()>0)
+                getCommandline().createVmArgument().setLine("--upgrade-module-path  "+apiJarPath +" :"+soapApiJar);
         }
         getCommandline().setClassname(className);
     }
@@ -154,6 +156,15 @@ public class WsImport extends WsImportBase {
         String s = u.toExternalForm();
         s = s.substring(s.lastIndexOf(':') + 1);
         return s.indexOf('!') < 0 ? s : s.substring(0, s.indexOf('!'));
+    }
+
+    private String getSoapApi(ClassLoader cl) {
+        StringBuilder sb = new StringBuilder();
+        URL soapAPI = getResourceFromCP(cl, "javax/xml/soap/FactoryFinder.class");
+        if (soapAPI != null) {
+            sb.append(jarToPath(soapAPI));
+        }
+        return sb.length() != 0 ? sb.toString() : null;
     }
 
 }
